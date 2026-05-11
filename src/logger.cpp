@@ -1,8 +1,12 @@
+/**
+ * @file logger.cpp
+ * @brief 异步日志系统的实现
+ */
+
 #include "logger.h"
 #include <thread>
 #include <time.h>
 #include <iostream>
-
 
 Logger &Logger::GetInstance() {
     static Logger logger;
@@ -13,7 +17,7 @@ Logger::Logger() {
     // 启动专门的写日志线程
     std::thread writeLogTask([&]() {
        for (;;) {
-           // 获取当前的日期，然后去日志信息，写入相应的日志文件中 a+
+           // 当前系统时间
            time_t now=time(nullptr);
            tm* nowtm=localtime(&now);
 
@@ -34,11 +38,13 @@ Logger::Logger() {
            msg.insert(0,time_buf);
            msg.append("\n");
 
+           // 写入文件并关闭
            fputs(msg.c_str(),fp);
            fclose(fp);
        }
     });
-    // 设置分离线程，守护线程
+
+    // 设置分离线程(守护线程)，主线程退出时不等待
     writeLogTask.detach();
 }
 

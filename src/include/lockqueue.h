@@ -1,6 +1,7 @@
-//
-// Created by 小晓 on 2026/4/28.
-//
+/**
+ * @file lockqueue.h
+ * @brief 线程安全队列模块
+ */
 
 #ifndef RPC_LOCKQUEUE_H
 #define RPC_LOCKQUEUE_H
@@ -11,7 +12,7 @@
 #include <condition_variable>
 
 /**
- * @brief 异步日志队列
+ * @brief 线程安全的队列
  * @tparam T 队列中存储的元素类型
  */
 template <typename T>
@@ -19,8 +20,8 @@ class LockQueue {
 public:
 
     /**
-     * @brief 多个worker线程都会写入日志queue
-     * @param data
+     * @brief 向队列中压入一个元素
+     * @param data 要压入的元素
      */
     void Push(const T& data) {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -29,8 +30,8 @@ public:
     }
 
     /**
-     * @brief 一个线程读日志queue，写日志文件
-     * @return 读出日志queue的队头元素
+     * @brief 从队列中共弹出一个元素
+     * @return 队列头元素
      */
     T Pop() {
         std::unique_lock<std::mutex> lock(m_mutex);
@@ -41,8 +42,13 @@ public:
     }
 
 private:
+    /// 底层存储的队列
     std::queue<T> m_queue;
+
+    /// 用于保护队列操作的互斥锁
     std::mutex m_mutex;
+
+    /// 用于线程同步的条件变量
     std::condition_variable m_condvariable;
 };
 #endif //RPC_LOCKQUEUE_H

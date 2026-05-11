@@ -2,7 +2,6 @@
 #include "mprpcapplication.h"
 #include "friend.pb.h"
 
-
 int main(int argc,char** argv) {
     MprpcApplication::Init(argc,argv);
     fixbug::FriendServiceRpc_Stub stub(new MprpcChannel());

@@ -1,3 +1,8 @@
+/**
+ * @file mprpccontroller.cpp
+ * @brief 实现MprpcController的接口
+ */
+
 #include "mprpccontroller.h"
 
 MprpcController::MprpcController() {
@@ -23,16 +28,17 @@ void MprpcController::SetFailed(const std::string &reason) {
     m_errText = reason;
 }
 
-// 目前未具体实现的功能
-
+// 未实现
 void MprpcController::StartCancel() {
 
 }
 
+// 未实现
 bool MprpcController::IsCanceled() const {
     return false;
 }
 
+// 未实现
 void MprpcController::NotifyOnCancel(google::protobuf::Closure *callback) {
 
 }
