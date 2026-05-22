@@ -1,8 +1,21 @@
 #include <iostream>
-#include "mprpcapplication.h"
+#include "MprpcApplication.h"
 #include "friend.pb.h"
+#include "Logger.h"
+
+void InitLogger() {
+    Logger::setLogLevel(LogLevel::INFO);
+
+    static std::shared_ptr<AsyncLogging> asyncLogger;
+    asyncLogger=std::make_shared<AsyncLogging>("FriendClient");
+    asyncLogger->start();
+    Logger::setAsyncLogging(asyncLogger);
+    LOG_INFO("Friend Client Logger Initialized");
+}
 
 int main(int argc,char** argv) {
+    InitLogger();
+    
     MprpcApplication::Init(argc,argv);
     fixbug::FriendServiceRpc_Stub stub(new MprpcChannel());
 

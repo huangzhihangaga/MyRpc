@@ -3,7 +3,7 @@
  * @brief 实现MprpcController的接口
  */
 
-#include "mprpccontroller.h"
+#include "MprpcController.h"
 
 MprpcController::MprpcController() {
     m_failed = false;

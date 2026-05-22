@@ -6,18 +6,19 @@
  *  rpc_header => | service_name method_name args_size |
  */
 
-#include "mprpcchannel.h"
+#include "MprpcChannel.h"
 #include <string>
 #include "rpcheader.pb.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <error.h>
 #include <arpa/inet.h>
-#include "mprpcapplication.h"
+#include "MprpcApplication.h"
 #include <netinet/in.h>
 #include <unistd.h>
-#include "mprpccontroller.h"
-#include "zookeeperutil.h"
+#include "MprpcController.h"
+#include "ZookeeperUtil.h"
+#include "Logger.h"
 
 void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
                             google::protobuf::RpcController *controller,
@@ -64,20 +65,19 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
     send_rpc_str+=args_str; // args
 
     // 打印调试信息
-    std::cout<<"======================================"<<std::endl;
-    std::cout<<"header_size:"<<header_size<<std::endl;
-    std::cout<<"rpc_header_str:"<<rpc_header_str<<std::endl;
-    std::cout<<"service_name:"<<service_name<<std::endl;
-    std::cout<<"method_name:"<<method_name<<std::endl;
-    std::cout<<"args_str:"<<args_str<<std::endl;
-    std::cout<<"args_size:"<<args_size<<std::endl;
-    std::cout<<"======================================"<<std::endl;
+    LOG_DEBUG("======================================");
+    LOG_DEBUG("header_size:%u",header_size);
+    LOG_DEBUG("service_name:%s", service_name.c_str());
+    LOG_DEBUG("method_name:%s", method_name.c_str());
+    LOG_DEBUG("args_size:%u", args_size);
+    LOG_DEBUG("header_size:%u", ntohl(*(uint32_t*)send_rpc_str.c_str()));
 
     // 使用tcp编程发送rpc方法的远程调用
     int clientfd=socket(AF_INET,SOCK_STREAM,0);
     if (clientfd==-1) {
         char errtext[512]={0};
         snprintf(errtext,sizeof(errtext),"create socket error:%d",errno);
+        LOG_ERROR("create socket failed: %s", errtext);
         controller->SetFailed(errtext);
         return;
     }
@@ -92,12 +92,14 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
     // 例如 "127.0.0.1:8000"
     std::string host_data=zkCli.GetData(method_path.c_str());
     if (host_data.empty()) {
+        LOG_ERROR("method_path:%s address is invalid!", method_path.c_str());
         controller->SetFailed(method_path+" address is invalid!");
         return;
     }
 
     size_t idx=host_data.find(':');
     if (idx==std::string::npos) {
+        LOG_ERROR("method_path:%s address is invalid!", method_path.c_str());
         controller->SetFailed(method_path+" address is invalid!");
         return;
     }
@@ -110,13 +112,14 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
     server_addr.sin_port=htons(port);
     // server_addr.sin_addr.s_addr=inet_addr(ip.c_str());
     if (inet_pton(AF_INET,ip.c_str(),&server_addr.sin_addr)<=0) {
-        std::cout<<"inet_pton error:"<<errno<<std::endl;
+        LOG_ERROR("inet_pton error for ip:%s, errno:%d", ip.c_str(), errno);
     }
 
     // 连接rpc服务节点
     if (-1==connect(clientfd,(struct sockaddr*)&server_addr,sizeof(server_addr))) {
         char errtext[512]={0};
         snprintf(errtext,sizeof(errtext),"connect socket error:%d",errno);
+        LOG_ERROR("connect to %s:%d failed: %s", ip.c_str(), port, errtext);
         controller->SetFailed(errtext);
         close(clientfd);
         return;

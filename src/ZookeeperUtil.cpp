@@ -3,11 +3,12 @@
  * @brief zookeeper客户端类接口实现
  */
 
-#include "zookeeperutil.h"
-#include "mprpcapplication.h"
+#include "ZookeeperUtil.h"
+#include "MprpcApplication.h"
 #include <semaphore>
 #include <iostream>
 #include <zookeeper/zookeeper.h>
+#include "Logger.h"
 
 /**
  * @internal
@@ -56,7 +57,7 @@ void ZkClient::Start() {
     // 发起zk连接和zk连接响应是异步的
     m_zhandle=zookeeper_init(connstr.c_str(),global_watcher,30000,nullptr,nullptr,0);
     if (nullptr==m_zhandle) {
-        std::cout<<"zookeeper_init error!"<<std::endl;
+        LOG_ERROR("zookeeper_init error! connstr:%s", connstr.c_str());
         exit(EXIT_FAILURE);
     }
 
@@ -66,7 +67,7 @@ void ZkClient::Start() {
 
     // 等待global_watcher中的sem_post(sem)
     sem_wait(&sem);
-    std::cout<<"zookeeper_init success!"<<std::endl;
+    LOG_INFO("zookeeper_init success! host:%s", connstr.c_str());
     sem_destroy(&sem);
 }
 
@@ -81,10 +82,9 @@ void ZkClient::Create(const char *path, const char *data, int datalen, int state
         flag=zoo_create(m_zhandle,path,data,datalen,
                         &ZOO_OPEN_ACL_UNSAFE,state,path_buffer,bufferlen);
         if (flag==ZOK) {
-            std::cout<<"znode create success... path:"<<path<<std::endl;
+            LOG_INFO("znode create success: %s", path);
         }else {
-            std::cout<<"flag:"<<flag<<std::endl;
-            std::cout<<"znode create error... path:"<<path<<std::endl;
+            LOG_ERROR("znode create error: %s, flag:%d", path, flag);
             exit(EXIT_FAILURE);
         }
     }
@@ -96,9 +96,10 @@ std::string ZkClient::GetData(const char *path) {
     int bufferlen=sizeof(buffer);
     int flag=zoo_get(m_zhandle,path,0,buffer,&bufferlen,nullptr);
     if (flag!=ZOK) {
-        std::cout<<"get znode error... path:"<<path<<std::endl;
+        LOG_WARN("get znode error: %s, flag:%d", path, flag);
         return "";
     }else {
+        LOG_DEBUG("get znode success: %s, data:%s", path, buffer);
         return buffer;
     }
 }

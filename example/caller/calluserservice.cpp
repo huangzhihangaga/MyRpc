@@ -1,14 +1,27 @@
 #include <iostream>
-#include "mprpcapplication.h"
+#include "MprpcApplication.h"
 #include "user.pb.h"
-#include "mprpcchannel.h"
+#include "MprpcChannel.h"
+#include "Logger.h"
 
 // 自定义简单的回调函数
 void LoginCallback() {
     std::cout<<"in callback "<<std::endl;
 }
 
+void InitLogger() {
+    Logger::setLogLevel(LogLevel::INFO);
+
+    static std::shared_ptr<AsyncLogging> asyncLogger;
+    asyncLogger=std::make_shared<AsyncLogging>("UserClient");
+    asyncLogger->start();
+    Logger::setAsyncLogging(asyncLogger);
+    LOG_INFO("User Client Logger Initialized");
+}
+
 int main(int argc,char** argv) {
+    InitLogger();
+
     // 整个程序启动后，想使用mprpc框架来享受服务调用，一定需要先调用框架的初始化函数（只初始化一次）
     MprpcApplication::Init(argc,argv);
     fixbug::UserServiceRpc_Stub stub(new MprpcChannel());

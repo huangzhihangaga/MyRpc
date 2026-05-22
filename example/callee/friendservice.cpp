@@ -1,15 +1,16 @@
 #include <iostream>
 #include <string>
 #include "friend.pb.h"
-#include <mprpcapplication.h>
-#include "rpcprovider.h"
+#include <MprpcApplication.h>
+#include "MprpcProvider.h"
 #include <vector>
-#include "logger.h"
+#include "Logger.h"
+#include "AsyncLogging.h"
 
 class FriendService :public fixbug::FriendServiceRpc{
 public:
     std::vector<std::string> GetFriendList(uint32_t userid) {
-        std::cout<<"do GetFriendList service! userid:"<<userid<<std::endl;
+        LOG_INFO("do GetFriendList service! userid:%u", userid);
         std::vector<std::string> vec;
         vec.push_back("gao yan");
         vec.push_back("liu hong");
@@ -36,13 +37,26 @@ public:
     }
 };
 
-int main(int argc,char** argv) {
-    LOG_INFO("first log message!");
-    LOG_ERR("%s:%s:%d",__FILE__,__FUNCTION__,__LINE__);
-    MprpcApplication::Init(argc,argv);
+void InitLogger() {
+    Logger::setLogLevel(LogLevel::INFO);
 
-    RpcProvider provider;
+    static std::shared_ptr<AsyncLogging> asyncLogger;
+    asyncLogger=std::make_shared<AsyncLogging>("FriendService");
+    asyncLogger->start();
+    Logger::setAsyncLogging(asyncLogger);
+    LOG_INFO("Friend Service Logger Initialized");
+}
+
+int main(int argc,char** argv) {
+    InitLogger();
+
+    MprpcApplication::Init(argc,argv);
+    LOG_INFO("RPC Framework initialized");
+
+    MprpcProvider provider;
     provider.NotifyService(new FriendService());
+    LOG_INFO("Friend Service registered successfully");
 
     provider.Run();
+    return 0;
 }

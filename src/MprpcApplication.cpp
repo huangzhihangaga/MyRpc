@@ -3,10 +3,11 @@
  * @brief rpc框架基础类实现
  */
 
-#include "mprpcapplication.h"
+#include "MprpcApplication.h"
 #include <iostream>
 #include <unistd.h>
 #include <string>
+#include "Logger.h"
 
 // MprpcApplication的静态成员变量m_config初始化
 MprpcConfig MprpcApplication::m_config;
@@ -47,10 +48,10 @@ void MprpcApplication::Init(int argc,char** argv) {
 
     // 开始加载配置文件 rpcserver_ip=  rpcserver_port=  zookeeper_ip=  zookeeper_port=
     m_config.LoadConfigFile(config_file.c_str());
-    // std::cout<<"rpcserverip:"<<m_config.Load("rpcserverip")<<std::endl;
-    // std::cout<<"rpcserverport:"<<m_config.Load("rpcserverport")<<std::endl;
-    // std::cout<<"zookeeperip:"<<m_config.Load("zookeeperip")<<std::endl;
-    // std::cout<<"zookeeperport:"<<m_config.Load("zookeeperport")<<std::endl;
+    LOG_INFO("rpcserverip:%s", m_config.Load("rpcserverip").c_str());
+    LOG_INFO("rpcserverport:%s", m_config.Load("rpcserverport").c_str());
+    LOG_INFO("zookeeperip:%s", m_config.Load("zookeeperip").c_str());
+    LOG_INFO("zookeeperport:%s", m_config.Load("zookeeperport").c_str());
 }
 
 MprpcApplication &MprpcApplication::GetInstance() {

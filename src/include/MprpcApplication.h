@@ -4,9 +4,9 @@
  */
 #ifndef RPC_MPRPCAPPLICATION_H
 #define RPC_MPRPCAPPLICATION_H
-#include "mprpcconfig.h"
-#include "mprpcchannel.h"
-#include "mprpccontroller.h"
+#include "MprpcConfig.h"
+#include "MprpcChannel.h"
+#include "MprpcController.h"
 
 /**
  * @brief rpc框架的基础类，负责框架的一些初始化操作

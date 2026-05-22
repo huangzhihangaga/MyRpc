@@ -1,8 +1,9 @@
 #include <iostream>
 #include <string>
 #include "user.pb.h"
-#include "mprpcapplication.h"
-#include "rpcprovider.h"
+#include "MprpcApplication.h"
+#include "MprpcProvider.h"
+#include "Logger.h"
 
 /*
  * UserService是本地服务类，提供进程内的本地方法 使用在rpc服务的发布端（rpc服务提供者）
@@ -56,7 +57,7 @@ public:
         code->set_errmsg("");
         response->set_success(login_result);
 
-        // 执行回调操作 执行响应对象数据的序列化和网络发送 （由框架来完成） RpcProvider::SendResponse，把数据序列化后发送回去
+        // 执行回调操作 执行响应对象数据的序列化和网络发送 （由框架来完成） MprpcProvider::SendResponse，把数据序列化后发送回去
         done->Run();
     }
 
@@ -81,13 +82,24 @@ public:
     }
 };
 
+void InitLogger() {
+    Logger::setLogLevel(LogLevel::INFO);
+
+    static std::shared_ptr<AsyncLogging> asyncLogger;
+    asyncLogger=std::make_shared<AsyncLogging>("UserService");
+    asyncLogger->start();
+    Logger::setAsyncLogging(asyncLogger);
+    LOG_INFO("User Service Logger Initialized");
+}
+
 int main(int argc,char** argv) {
+    InitLogger();
 
     // 调用框架的初始化操作
     MprpcApplication::Init(argc,argv);
 
     // provider是一个rpc网路服务对象，把UserService对象发布到rpc节点上
-    RpcProvider provider;
+    MprpcProvider provider;
     provider.NotifyService(new UserService());
 
     // 启动与rpc服务发布节点，Run以后，进程进入阻塞状态，等待远端的rpc调用请求

@@ -3,8 +3,8 @@
  * @brief 框架读取配置类实现
  */
 
-#include "mprpcconfig.h"
-
+#include "MprpcConfig.h"
+#include "Logger.h"
 #include <iostream>
 #include <string>
 #include <memory>
@@ -17,7 +17,7 @@ auto file_deleter=[](FILE* fp) {
 void MprpcConfig::LoadConfigFile(const char *config_file) {
     std::unique_ptr<FILE,decltype(file_deleter)> fp(fopen(config_file,"r"),file_deleter);
     if (fp==nullptr) {
-        // std::cout<<config_file<<" is not exist!"<<std::endl;
+        LOG_ERROR("config file %s is not exist!", config_file);
         exit(EXIT_FAILURE);
     }
 

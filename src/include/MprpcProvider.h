@@ -17,7 +17,7 @@
 /**
  * @brief 框架提供的专门用于发布rpc服务的网络对象类
  */
-class RpcProvider {
+class MprpcProvider {
 public:
     /**
      * @brief 框架提供给外部使用的，可以发布rpc方法的函数接口
@@ -29,7 +29,7 @@ public:
     /**
      * @brief 析构函数，退出事件循环
      */
-    ~RpcProvider();
+    ~MprpcProvider();
 
     /**
      * @brief 启动rpc服务节点，开始提供rpc远程网路调用服务
