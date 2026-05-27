@@ -16,21 +16,21 @@ public:
      * @param pwd 参数二
      * @return 返回值
      */
-    bool Login(std::string name,std::string pwd) {
-        std::cout<<"doing local service : Login"<<std::endl;
+    bool Login(const std::string& name,const std::string& pwd) {
+        std::cout<<"doing local service [Login]"<<std::endl;
         std::cout<<"name: "<<name<<" pwd: "<<pwd<<std::endl;
         return true;
     }
 
     /*
-     * @brief Register方法的到本地实现
+     * @brief Register方法的本地实现
      * @param id 参数一
      * @param name 参数二
      * @param pwd 参数三
      * @return 返回值
      */
-    bool Register(uint32_t id,std::string name,std::string pwd) {
-        std::cout<<"doing local service: Register"<<std::endl;
+    bool Register(uint32_t id,const std::string& name,const std::string& pwd) {
+        std::cout<<"doing local service [Register]"<<std::endl;
         std::cout<<"id:"<<id<<" name:"<<name<<" pwd:"<<pwd<<std::endl;
         return true;
     }
@@ -49,13 +49,13 @@ public:
         std::string name = request->name();
         std::string pwd = request->pwd();
 
-        bool login_result=Login(name,pwd); // 做本地业务
+        bool loginResult=Login(name,pwd);
 
         // 把相应写入
         fixbug::ResultCode* code=response->mutable_result();
         code->set_errcode(0);
         code->set_errmsg("");
-        response->set_success(login_result);
+        response->set_success(loginResult);
 
         // 执行回调操作 执行响应对象数据的序列化和网络发送 （由框架来完成） MprpcProvider::SendResponse，把数据序列化后发送回去
         done->Run();
@@ -71,13 +71,12 @@ public:
         std::string name = request->name();
         std::string pwd = request->pwd();
 
-        bool ret=Register(id,name,pwd);
+        bool registerResult=Register(id,name,pwd);
 
         response->mutable_result()->set_errcode(0);
         response->mutable_result()->set_errmsg("");
-        response->set_success(ret);
+        response->set_success(registerResult);
 
-        // 把response序列化并通过网络发给rpc client
         done->Run();
     }
 };

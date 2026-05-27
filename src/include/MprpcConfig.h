@@ -1,5 +1,5 @@
 /**
- * @file mprpcconfig.h
+ * @file MprpcConfig.h
  * @brief 框架读取配置类接口
  */
 
@@ -11,14 +11,16 @@
 
 /**
  * @brief 框架读取配置文件类
+ * @details 配置文件格式：key = value
  */
 class MprpcConfig {
 public:
     /**
      * @brief 负责解析加载配置文件
-     * @param config_file 配置文件路径
+     * @param configFile 配置文件路径
+     * @warning 如果文件不存在，记录日志并退出
      */
-    void LoadConfigFile(const char* config_file);
+    void LoadConfigFile(const char* configFile);
 
     /**
      * @brief 查询配置项信息
@@ -29,13 +31,13 @@ public:
 
 private:
     /// 存储配置项及其对应的值
-    std::unordered_map<std::string,std::string> m_configMap;
+    std::unordered_map<std::string,std::string> configMap_;
 
     /**
      * @brief 去除字符串前后的 空格\r\t\n
-     * @param src_buf 要进行处理的字符串
+     * @param src 要进行处理的字符串
      */
-    void Trim(std::string& src_buf);
+    void Trim(std::string& src);
 };
 
 #endif //RPC_MPRPCCONFIG_H

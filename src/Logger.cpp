@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <ctime>
 #include <sys/time.h>
+#include <cstdlib>
 #include <unistd.h>
 
 LogLevel Logger::logLevel_=LogLevel::INFO;

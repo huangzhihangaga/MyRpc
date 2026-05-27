@@ -6,7 +6,7 @@
 
 // 自定义简单的回调函数
 void LoginCallback() {
-    std::cout<<"in callback "<<std::endl;
+    std::cout<<"std::cout**************** in callback "<<std::endl;
 }
 
 void InitLogger() {
@@ -64,9 +64,10 @@ int main(int argc,char** argv) {
     req.set_name("mprpc");
     req.set_pwd("666666");
     fixbug::RegisterResponse rsp;
+    MprpcController controller2;
 
     // 以同步的方式发起rpc调用请求，等待返回结果
-    stub.Register(nullptr,&req,&rsp,nullptr);
+    stub.Register(&controller2,&req,&rsp,nullptr);
     if (0==rsp.result().errcode()) {
         std::cout<<"rpc register response success:"<<rsp.success()<<std::endl;
     }else {

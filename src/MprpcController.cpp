@@ -1,31 +1,31 @@
 /**
- * @file mprpccontroller.cpp
+ * @file MprpcController.cpp
  * @brief 实现MprpcController的接口
  */
 
 #include "MprpcController.h"
 
 MprpcController::MprpcController() {
-    m_failed = false;
-    m_errText = "";
+    failed_ = false;
+    errorText_ = "";
 }
 
 void MprpcController::Reset() {
-    m_failed = false;
-    m_errText = "";
+    failed_ = false;
+    errorText_.clear();
 }
 
 bool MprpcController::Failed() const {
-    return m_failed;
+    return failed_;
 }
 
 std::string MprpcController::ErrorText() const {
-    return m_errText;
+    return errorText_;
 }
 
 void MprpcController::SetFailed(const std::string &reason) {
-    m_failed = true;
-    m_errText = reason;
+    failed_ = true;
+    errorText_ = reason;
 }
 
 // 未实现
