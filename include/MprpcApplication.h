@@ -56,6 +56,16 @@ public:
      */
     MprpcApplication& operator=(MprpcApplication&&)=delete;
 
+    /// 默认消息大小限制
+    static size_t MaxMessageSize;
+
+    /**
+     * @brief 获取消息大小限制
+     * @return 消息的最大长度
+     * @details 如果配置文件中有消息大小限制选项，则在Init()中赋值一次，否则使用默认值
+     */
+    static size_t GetMaxMessageSize();
+
 private:
     /// 静态成员变量，负责加载存储配置文件，在MprpcApplication::Init()中赋值
     static MprpcConfig config_;

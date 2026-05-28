@@ -6,11 +6,11 @@
 
 // 自定义简单的回调函数
 void LoginCallback() {
-    std::cout<<"std::cout**************** in callback "<<std::endl;
+    std::cout<<"DONE IN CALLBACK"<<std::endl;
 }
 
 void InitLogger() {
-    Logger::setLogLevel(LogLevel::INFO);
+    Logger::setLogLevel(LogLevel::DEBUG);
 
     static std::shared_ptr<AsyncLogging> asyncLogger;
     asyncLogger=std::make_shared<AsyncLogging>("UserServiceClient");

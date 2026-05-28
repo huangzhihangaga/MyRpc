@@ -9,9 +9,9 @@
 #include <string>
 #include "Logger.h"
 
-// MprpcApplication的静态成员变量config_初始化
 MprpcConfig MprpcApplication::config_;
 bool MprpcApplication::initialized_=false;
+size_t MprpcApplication::MaxMessageSize=32*1024*1024;
 
 /**
  * @internal
@@ -61,6 +61,10 @@ void MprpcApplication::Init(int argc,char** argv) {
     LOG_INFO("zookeeperip:%s", config_.Load("zookeeperip").c_str());
     LOG_INFO("zookeeperport:%s", config_.Load("zookeeperport").c_str());
 
+    std::string messageSizeStr=config_.Load("maxmessagesize");
+    if (!messageSizeStr.empty()) {
+        MaxMessageSize=std::stoul(messageSizeStr);
+    }
     initialized_=true;
 }
 
@@ -71,4 +75,8 @@ MprpcApplication &MprpcApplication::GetInstance() {
 
 MprpcConfig& MprpcApplication::GetConfig() {
     return config_;
+}
+
+size_t MprpcApplication::GetMaxMessageSize() {
+    return MaxMessageSize;
 }

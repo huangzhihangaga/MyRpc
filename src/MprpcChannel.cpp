@@ -37,53 +37,62 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
     std::string methodName=method->name();
 
     // 获取参数的序列化字符串长度 args_size
-    uint32_t args_size=0;
-    std::string args_str;
-    if (!request->SerializeToString(&args_str)) {
+    uint32_t argsSize=0;
+    std::string argsStr;
+    if (!request->SerializeToString(&argsStr)) {
         controller->SetFailed("serialize request error!");
         LOG_ERROR("serialize request error!");
         return;
     }
-    args_size=args_str.size();
+    argsSize=argsStr.size();
 
     // 构造rpc的请求header
     mprpc::RpcHeader rpcHeader;
     rpcHeader.set_service_name(serviceName);
     rpcHeader.set_method_name(methodName);
-    rpcHeader.set_args_size(args_size);
+    rpcHeader.set_args_size(argsSize);
 
     // 序列化rpc头部
-    uint32_t header_size=0;
-    std::string rpc_header_str;
-    if (!rpcHeader.SerializeToString(&rpc_header_str)) {
+    uint32_t headerSize=0;
+    std::string rpcHeaderStr;
+    if (!rpcHeader.SerializeToString(&rpcHeaderStr)) {
         controller->SetFailed("serialize rpc_header error!");
         LOG_ERROR("serialize rpc_header error!");
         return;
     }
-    header_size=rpc_header_str.size();
-
-    // 组装最终要发送的数据包：4字节头部长度 + 头部数据 + 参数数据
-    std::string send_rpc_str;
-    header_size=htonl(header_size);
-    send_rpc_str.insert(0,std::string((char*)&header_size,4));
-    send_rpc_str+=rpc_header_str;
-    send_rpc_str+=args_str;
+    headerSize=rpcHeaderStr.size();
 
     // 打印调试信息
     LOG_DEBUG("======================================");
-    LOG_DEBUG("header_size:%lu",header_size);
+    LOG_DEBUG("header_size:%lu",headerSize);
     LOG_DEBUG("service_name:%s", serviceName.c_str());
     LOG_DEBUG("method_name:%s", methodName.c_str());
-    LOG_DEBUG("args_size:%lu", args_size);
-    LOG_DEBUG("send_rpc_size size:%d", send_rpc_str.size());
+    LOG_DEBUG("args_size:%lu", argsSize);
+
+    // 组装最终要发送的数据包：4字节头部长度 + 头部数据 + 参数数据
+    std::string sendRpcStr;
+    headerSize=htonl(headerSize);
+    sendRpcStr.insert(0,std::string((char*)&headerSize,4));
+    sendRpcStr+=rpcHeaderStr;
+    sendRpcStr+=argsStr;
+
+    LOG_DEBUG("send_rpc_size size:%d", sendRpcStr.size());
     LOG_DEBUG("======================================");
+
+    // if (send_rpc_str.size()>MprpcApplication::GetMaxMessageSize()) {
+    //     char errorBuffer[128] = {0};
+    //     snprintf(errorBuffer,sizeof(errorBuffer),"send_rpc_str is too large:%zu ,limit:%zu",send_rpc_str.size(),MprpcApplication::GetMaxMessageSize());
+    //     LOG_ERROR("%s",errorBuffer);
+    //     controller->SetFailed(errorBuffer);
+    //     return;
+    // }
 
     // 使用tcp编程发送rpc方法的远程调用
     int clientfd=socket(AF_INET,SOCK_STREAM,0);
     if (clientfd==-1) {
         char errorBuffer[128]={0};
         snprintf(errorBuffer,sizeof(errorBuffer),"create socket error:%d",errno);
-        LOG_ERROR("create socket failed: %s", errorBuffer);
+        LOG_ERROR("%s", errorBuffer);
         controller->SetFailed(errorBuffer);
         return;
     }
@@ -96,15 +105,15 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
     std::string methodPath="/"+serviceName+"/"+methodName;
 
     // 获取存储在zookeeper上的服务提供者地址信息"127.0.0.1:8000"
-    std::string host_data=zkclient.GetData(methodPath.c_str());
-    if (host_data.empty()) {
+    std::string hostIpPort=zkclient.GetData(methodPath.c_str());
+    if (hostIpPort.empty()) {
         LOG_ERROR("method_path:%s address is invalid!", methodPath.c_str());
         controller->SetFailed(methodPath+" address is invalid!");
         close(clientfd);
         return;
     }
 
-    size_t idx=host_data.find(':');
+    size_t idx=hostIpPort.find(':');
     if (idx==std::string::npos) {
         LOG_ERROR("method_path:%s address is invalid!", methodPath.c_str());
         controller->SetFailed(methodPath+" address is invalid!");
@@ -112,8 +121,8 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
         return;
     }
 
-    std::string ip=host_data.substr(0,idx);
-    uint16_t port=std::stoi(host_data.substr(idx+1,host_data.size()-idx));
+    std::string ip=hostIpPort.substr(0,idx);
+    uint16_t port=std::stoi(hostIpPort.substr(idx+1,hostIpPort.size()-idx));
     
     struct sockaddr_in serverAddr;
     serverAddr.sin_family=AF_INET;
@@ -139,7 +148,7 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
     }
 
     // 发送rpc请求
-    if (-1==send(clientfd,send_rpc_str.c_str(),send_rpc_str.size(),0)) {
+    if (-1==send(clientfd,sendRpcStr.c_str(),sendRpcStr.size(),0)) {
         char errorBuffer[128] = {0};
         snprintf(errorBuffer, sizeof(errorBuffer), "send error: %d", errno);
         LOG_ERROR("%s", errorBuffer);
@@ -157,6 +166,16 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
         return;
     }
     responseLen=ntohl(responseLen);
+
+    // if (responseLen>MprpcApplication::GetMaxMessageSize()) {
+    //     char errorBuffer[128] = {0};
+    //     snprintf(errorBuffer,sizeof(errorBuffer),"response is too large:%zu ,limit:%zu",send_rpc_str.size(),MprpcApplication::GetMaxMessageSize());
+    //     LOG_ERROR("%s",errorBuffer);
+    //     controller->SetFailed(errorBuffer);
+    //     close(clientfd);
+    //     return;
+    // }
+
     std::vector<char> recvBuffer(responseLen);
     size_t received=0;
     while (received<responseLen) {
@@ -170,7 +189,7 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
         received+=n;
     }
 
-    if (!response->ParseFromArray(recvBuffer.data(),responseLen)) {
+    if (!response->ParseFromArray(recvBuffer.data(),static_cast<int>(responseLen))) {
         controller->SetFailed("response parse error");
         LOG_ERROR("response parse error");
         close(clientfd);

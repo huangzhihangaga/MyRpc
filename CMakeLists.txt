@@ -15,3 +15,8 @@ link_directories(${PROJECT_SOURCE_DIR}/lib)
 
 add_subdirectory(src)
 add_subdirectory(example)
+
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "CXX flags: ${CMAKE_CXX_FLAGS}")
+message(STATUS "Release CXX flags: ${CMAKE_CXX_FLAGS_RELEASE}")
+message(STATUS "Debug CXX flags: ${CMAKE_CXX_FLAGS_DEBUG}")
