@@ -13,7 +13,7 @@ void InitLogger() {
     Logger::setLogLevel(LogLevel::INFO);
 
     static std::shared_ptr<AsyncLogging> asyncLogger;
-    asyncLogger=std::make_shared<AsyncLogging>("UserClient");
+    asyncLogger=std::make_shared<AsyncLogging>("UserServiceClient");
     asyncLogger->start();
     Logger::setAsyncLogging(asyncLogger);
     LOG_INFO("User Client Logger Initialized");

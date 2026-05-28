@@ -81,7 +81,7 @@ void LogFile::write(const char *logline, int len) {
 std::string LogFile::getLogFileName() {
     std::string filename=basename_;
 
-    char timebuf[64];
+    char timebuf[128];
     time_t now=time(nullptr);
     struct tm tm_time;
     localtime_r(&now,&tm_time);

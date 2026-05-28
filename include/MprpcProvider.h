@@ -16,7 +16,7 @@
 #include <unordered_map>
 
 /**
- * @brief 框架提供的专门用于发布rpc服务的网络对象类
+ * @brief 框架提供的专门用于发布RPC服务的网络对象类
  * @details 主要功能：
  *          注册RPC服务对象及其方法
  *          启动TCP服务器监听客户端请求
@@ -57,8 +57,44 @@ public:
     void Run(int threadNum=4);
 
 private:
-    /// EventLoop
-    muduo::net::EventLoop eventLoop_;
+    /**
+     * @enum ParseState
+     * @brief 解析协议状态机状态
+     */
+    enum class ParseState {
+        ExpectHeaderSize, ///< 等待4个字节的头部长度
+        ExpectHeader, ///< 等待RpcHeader的内容
+        ExpectArgs ///< 等待读取请求参数(request)
+    };
+
+    /**
+     * @struct ParseContext
+     * @brief 每个连接的粘包/拆包解析上下文
+     */
+    struct ParseContext {
+        /// 当前解析状态
+        ParseState state;
+
+        /// 头部长度(RpcHeader大小)
+        uint32_t headerSize;
+
+        /// 参数长度(request大小)
+        uint32_t argsSize;
+
+        /// 头部数据缓冲
+        std::string headerBuffer;
+
+        /// 参数数据缓冲
+        std::string argsBuffer;
+
+        /**
+         * @brief ParseContext的默认构造函数
+         */
+        ParseContext()
+        :state(ParseState::ExpectHeaderSize)
+        ,headerSize(0)
+        ,argsSize(0){}
+    };
 
     /**
      * @struct ServiceInfo
@@ -70,10 +106,21 @@ private:
 
         /// 方法名:方法描述符 映射表
         std::unordered_map<std::string,const google::protobuf::MethodDescriptor*> methodMap_;
+
+        /**
+         * @brief ServiceInfo的默认构造函数
+         */
+        ServiceInfo():service_(nullptr){}
     };
 
     /// 服务名:服务信息结构体 映射表
     std::unordered_map<std::string,ServiceInfo> serviceMap_;
+
+    /// 连接:协议解析结构体
+    std::unordered_map<muduo::net::TcpConnectionPtr,std::unique_ptr<ParseContext>> contextsMap_;
+
+    /// EventLoop
+    muduo::net::EventLoop eventLoop_;
 
     /**
      * @brief 建立连接或断开连接的回调
@@ -86,17 +133,25 @@ private:
      * @param conn TcpConnection智能指针的引用
      * @param buffer 接收缓冲区
      * @param receive_time 接收时间戳
-     * @details 协议解析流程：
-     *          1.读取4字节的header_size
-     *          2.读取header
-     *          3.反序列化header获取service_name、method_name、args_size
-     *          4.读取请求参数args
-     *          5.查找相应的服务和方法
-     *          6.创建请求/响应对象并调用服务方法
+     * @details 使用状态机处理粘包/拆包问题，处理完后调用MprpcProvider::processRequest
      */
     void onMessage(const muduo::net::TcpConnectionPtr& conn,
                    muduo::net::Buffer* buffer,
                    muduo::Timestamp receive_time);
+
+    /**
+     * @brief 处理RPC请求
+     * @param conn TcpConnection智能指针的引用
+     * @param header 已解析的头部数据
+     * @param args 已解析的参数数据
+     * @param headerSize 头部大小
+     * @param argsSize 参数大小
+     */
+    void processRequest(const muduo::net::TcpConnectionPtr& conn,
+                        const std::string& header,
+                        const std::string& args,
+                        uint32_t headerSize,
+                        uint32_t argsSize);
 
     /**
      * @brief 将rpc方法的执行结果发送回rpc客户端

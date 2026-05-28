@@ -89,89 +89,120 @@ void MprpcProvider::Run(int threadNum) {
 void MprpcProvider::onConnection(const muduo::net::TcpConnectionPtr &conn) {
     if (!conn->connected()) {
         // 如果连接关闭，则断开连接
+        contextsMap_.erase(conn);
         conn->shutdown();
     }
 }
 
-// 在框架内部 RpcProvider和RpcConsumer要协商之间通信用的protobuf数据类型
-// service_name method_name args_size 定义proto的message类型，进行数据头的序列化和反序列化
-//                               service_name method_name args_size
-//
-// header_size(4个字节，表示数据头，及除参数外数据的长度) + header_str + args_str
 void MprpcProvider::onMessage(const muduo::net::TcpConnectionPtr &conn,
                             muduo::net::Buffer *buffer,
                             muduo::Timestamp receive_time)
 {
-    // 网络缓冲区中去取出远程rpc调用请求的字符流
-    std::string recvBuffer=buffer->retrieveAllAsString();
+    auto it=contextsMap_.find(conn);
+    if (it==contextsMap_.end()) {
+        contextsMap_[conn]=std::make_unique<ParseContext>();
+        it=contextsMap_.find(conn);
+    }
 
-    // 从字符流中读取前4个字节的内容
-    uint32_t header_size=0;
-    recvBuffer.copy((char*)&header_size,4,0);
-    header_size=ntohl(header_size);
+    std::unique_ptr<ParseContext>& context=it->second;
+    while (true) {
+        /// 4个字节的头部长度
+        if (context->state==ParseState::ExpectHeaderSize) {
+            if (buffer->readableBytes()<4) {
+                return;
+            }
 
-    // 根据header_size读取数据头的原始字符流,反序列化数据得到rpc请求的详细信息
-    std::string rpc_header_str=recvBuffer.substr(4,header_size);
+            uint32_t header_size=0;
+            memcpy(&header_size,buffer->peek(),4);
+            buffer->retrieve(4);
+            context->headerSize=ntohl(header_size);
+
+            context->state=ParseState::ExpectHeader;
+            context->headerBuffer.clear();
+            context->headerBuffer.reserve(header_size);
+        }
+
+        if (context->state==ParseState::ExpectHeader) {
+            if (buffer->readableBytes()<context->headerSize) {
+                return;
+            }
+            context->headerBuffer.append(buffer->peek(),context->headerSize);
+            buffer->retrieve(context->headerSize);
+            mprpc::RpcHeader rpcHeader;
+            if (!rpcHeader.ParseFromString(context->headerBuffer)) {
+                LOG_ERROR("parse rpc_header error");
+                context->state=ParseState::ExpectHeaderSize;
+                context->headerBuffer.clear();
+            }
+            context->argsSize=rpcHeader.args_size();
+
+            context->state=ParseState::ExpectArgs;
+            context->argsBuffer.clear();
+            context->argsBuffer.reserve(context->argsSize);
+        }
+
+        if (context->state==ParseState::ExpectArgs) {
+            if (buffer->readableBytes()<context->argsSize) {
+                return;
+            }
+            context->argsBuffer.append(buffer->peek(),context->argsSize);
+            buffer->retrieve(context->argsSize);
+            processRequest(conn,context->headerBuffer,context->argsBuffer,context->headerSize,context->argsSize);
+
+            context->state=ParseState::ExpectHeaderSize;
+            context->headerSize=0;
+            context->argsSize=0;
+            context->headerBuffer.clear();
+            context->argsBuffer.clear();
+        }
+    }
+}
+
+
+void MprpcProvider::processRequest(const muduo::net::TcpConnectionPtr &conn, const std::string &headerStr, const std::string &argsStr, uint32_t headerSize, uint32_t argsSize) {
     mprpc::RpcHeader rpcHeader;
-    std::string service_name;
-    std::string method_name;
-    uint32_t args_size;
-    if (!rpcHeader.ParseFromString(rpc_header_str)) {
-        LOG_DEBUG("rpc_header_str:%s parse error!",rpc_header_str.c_str());
+    if (!rpcHeader.ParseFromString(headerStr)) {
+        LOG_ERROR("parse rpc_header error");
         return;
     }
-    service_name=rpcHeader.service_name();
-    method_name=rpcHeader.method_name();
-    args_size=rpcHeader.args_size();
 
-    // 获取rpc方法参数的字符流数据
-    std::string args_str=recvBuffer.substr(4+header_size,args_size);
+    std::string serviceName=rpcHeader.service_name();
+    std::string methodName=rpcHeader.method_name();
 
-    // 打印调试信息
     LOG_DEBUG("==================");
-    LOG_DEBUG("header_size:%u", header_size);
-    LOG_DEBUG("rpc_header_str:%s", rpc_header_str.c_str());
-    LOG_DEBUG("service_name:%s", service_name.c_str());
-    LOG_DEBUG("method_name:%s", method_name.c_str());
-    LOG_DEBUG("args_size:%u", args_size);
+    LOG_DEBUG("header_size:%u", headerSize);
+    LOG_DEBUG("args_size:%u", argsSize);
+    LOG_DEBUG("service_name:%s", serviceName.c_str());
+    LOG_DEBUG("method_name:%s", methodName.c_str());
     LOG_DEBUG("==================");
 
-    // 获取service对象和method对象
-    auto it=serviceMap_.find(service_name);
+    auto it=serviceMap_.find(serviceName);
     if (it==serviceMap_.end()) {
-        LOG_ERROR("service %s is not exist!", service_name.c_str());
+        LOG_ERROR("rpc service %s not exist",serviceName.c_str());
         return;
     }
 
-    auto mit=it->second.methodMap_.find(method_name);
+    auto mit=it->second.methodMap_.find(methodName);
     if (mit==it->second.methodMap_.end()) {
-        LOG_ERROR("service %s method %s is not exist!", service_name.c_str(), method_name.c_str());
+        LOG_ERROR("rpc service %s method %s not exist",serviceName.c_str(),methodName.c_str());
         return;
     }
 
-    google::protobuf::Service *service=it->second.service_;
+    google::protobuf::Service* service=it->second.service_;
     const google::protobuf::MethodDescriptor* method=mit->second;
 
-    // 生成rpc方法调用的请求request和响应response参数
     std::unique_ptr<google::protobuf::Message> request(service->GetRequestPrototype(method).New());
     std::unique_ptr<google::protobuf::Message> response(service->GetResponsePrototype(method).New());
-    if (!request->ParseFromString(args_str)) {
-        LOG_ERROR("request parse error, content:%s", args_str.c_str());
+
+    if (!request->ParseFromString(argsStr)) {
+        LOG_ERROR("request parse error, content:%s", argsStr.c_str());
         return;
     }
 
-    // 给下面的method方法的调用，绑定一个Closure的回调函数
     google::protobuf::Closure* done=
-        google::protobuf::NewCallback<MprpcProvider,
-                                        const muduo::net::TcpConnectionPtr&,
-                                        google::protobuf::Message*>
-                                        (this,
-                                            &MprpcProvider::SendRpcResponse,
-                                            conn,
-                                            response.get());
+        google::protobuf::NewCallback<MprpcProvider,const muduo::net::TcpConnectionPtr&,google::protobuf::Message*>
+                                    (this,&MprpcProvider::SendRpcResponse,conn,response.get());
 
-    // 在框架上根据远端rpc请求，调用当前rpc节点上发布的方法
-    // new UserService().Login(controller,request,response,done)
     service->CallMethod(method,nullptr,request.get(),response.release(),done);
 }
 
