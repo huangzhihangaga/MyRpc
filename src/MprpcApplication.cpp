@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <string>
 #include "Logger.h"
+#include "ZookeeperUtil.h"
 
 MprpcConfig MprpcApplication::config_;
 bool MprpcApplication::initialized_=false;
@@ -65,6 +66,8 @@ void MprpcApplication::Init(int argc,char** argv) {
     if (!messageSizeStr.empty()) {
         MaxMessageSize=std::stoul(messageSizeStr);
     }
+
+    ZkClient::GetInstance().Start();
     initialized_=true;
 }
 

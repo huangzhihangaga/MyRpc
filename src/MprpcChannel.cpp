@@ -30,13 +30,13 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
     // 获取服务名和方法名
     const google::protobuf::ServiceDescriptor* serviceDesc=method->service();
 
-    // service_name 如 UserServiceRpc
+    // serviceName 如 UserServiceRpc
     std::string serviceName=serviceDesc->name();
 
-    // method_name 如Login
+    // methodName 如Login
     std::string methodName=method->name();
 
-    // 获取参数的序列化字符串长度 args_size
+    // 获取参数的序列化字符串长度 argsSize
     uint32_t argsSize=0;
     std::string argsStr;
     if (!request->SerializeToString(&argsStr)) {
@@ -98,8 +98,7 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
     }
 
     // 连接zookeeper并从zookeeper上获取服务提供者的地址
-    ZkClient zkclient;
-    zkclient.Start();
+    ZkClient& zkclient=ZkClient::GetInstance();
 
     // 例如 /UserServiceRpc/Login
     std::string methodPath="/"+serviceName+"/"+methodName;

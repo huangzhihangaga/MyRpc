@@ -57,10 +57,7 @@ void MprpcProvider::Run(int threadNum) {
     // 设置muduo库的线程数量
     server.setThreadNum(threadNum);
 
-    // 把当前rpc节点上要发布的服务全部注册到zookeeper上，让rpc客户端可以从zookeeper上面发现服务
-    // 从配置文件中读取zookeeper服务器地址和端口并连接
-    ZkClient zkclient;
-    zkclient.Start();
+    ZkClient& zkclient=ZkClient::GetInstance();
 
     // service_name为永久性节点 method_name为临时节点
     for (auto& sp:serviceMap_) {

@@ -13,7 +13,7 @@
  * @param type 事件类型，如会话事件、数据变化事件等
  * @param state 连接状态，如已连接、已断开
  * @param path 节点路径
- * @param watcherCtx 用户传递的上下文指针，对于zookeeper_init中的参数context
+ * @param watcherCtx 用户传递的上下文指针，对应zookeeper_init中的参数context
  * @details 作为ZkClient的友元函数，因为zookeeper_init是异步的，通过条变量确保初始化完成
  * @related ZkClient
  */
@@ -39,6 +39,11 @@ ZkClient::ZkClient()
     ,mutex_()
     ,cond_(){
 
+}
+
+ZkClient &ZkClient::GetInstance() {
+    static ZkClient instance;
+    return instance;
 }
 
 ZkClient::~ZkClient() {
@@ -72,8 +77,7 @@ void ZkClient::Start() {
 void ZkClient::Create(const char *path, const char *data, int datalen, int state) {
     char buffer[128]={0};
     int bufferSize=sizeof(buffer);
-    int flag;
-    flag=zoo_exists(zhandle_,path,0,nullptr);
+    int flag=zoo_exists(zhandle_,path,0,nullptr);
     if (flag==ZNONODE) {
         // 节点不存在
         flag=zoo_create(zhandle_,path,data,datalen,&ZOO_OPEN_ACL_UNSAFE,state,buffer,bufferSize);
@@ -87,6 +91,30 @@ void ZkClient::Create(const char *path, const char *data, int datalen, int state
 }
 
 std::string ZkClient::GetData(const char *path) {
+    std::string pathStr(path);
+    auto now=std::chrono::steady_clock::now();
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it=cache_.find(pathStr);
+        if (it!=cache_.end()) {
+            if (now<it->second.expireTime) {
+                return it->second.data;
+            }
+            cache_.erase(it);
+        }
+        std::string data=GetDataFromZkServer(path);
+        if (!data.empty()) {
+            CacheItem item;
+            item.data=data;
+            item.expireTime=now+std::chrono::seconds(CacheTTLSeconds);
+            cache_[pathStr]=item;
+            LOG_DEBUG("cache added for path: %s, data: %s", path, data.c_str());
+        }
+        return data;
+    }
+}
+
+std::string ZkClient::GetDataFromZkServer(const char *path) {
     char buffer[64]={0};
     int bufferSize=sizeof(buffer);
     int flag=zoo_get(zhandle_,path,0,buffer,&bufferSize,nullptr);
@@ -97,4 +125,19 @@ std::string ZkClient::GetData(const char *path) {
         LOG_WARN("get znode error: %s, flag:%d", path, flag);
         return "";
     }
+}
+
+void ZkClient::DeleteCache(const std::string &path) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it=cache_.find(path);
+    if (it!=cache_.end()) {
+        cache_.erase(it);
+        LOG_DEBUG("cache delete path:%s",path.c_str());
+    }
+}
+
+void ZkClient::DeleteAllCache() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    cache_.clear();
+    LOG_DEBUG("delete all cache");
 }
