@@ -6,6 +6,8 @@ set(SRC_LIST MprpcApplication.cpp
             MprpcProvider.cpp
             MprpcChannel.cpp
             MprpcController.cpp
+            ServerConnectionPool.cpp
+            ConnectionPool.cpp
             LogFile.cpp
             Logger.cpp
             AsyncLogging.cpp

@@ -12,6 +12,7 @@
 #include "MprpcController.h"
 #include "ZookeeperUtil.h"
 #include "Logger.h"
+#include "ConnectionPool.h"
 
 #include <string>
 #include <sys/types.h>
@@ -87,16 +88,6 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
     //     return;
     // }
 
-    // 使用tcp编程发送rpc方法的远程调用
-    int clientfd=socket(AF_INET,SOCK_STREAM,0);
-    if (clientfd==-1) {
-        char errorBuffer[128]={0};
-        snprintf(errorBuffer,sizeof(errorBuffer),"create socket error:%d",errno);
-        LOG_ERROR("%s", errorBuffer);
-        controller->SetFailed(errorBuffer);
-        return;
-    }
-
     // 连接zookeeper并从zookeeper上获取服务提供者的地址
     ZkClient& zkclient=ZkClient::GetInstance();
 
@@ -108,41 +99,35 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
     if (hostIpPort.empty()) {
         LOG_ERROR("method_path:%s address is invalid!", methodPath.c_str());
         controller->SetFailed(methodPath+" address is invalid!");
-        close(clientfd);
         return;
     }
 
+    // // 使用tcp编程发送rpc方法的远程调用
+    // int clientfd=socket(AF_INET,SOCK_STREAM,0);
+    // if (clientfd==-1) {
+    //     char errorBuffer[128]={0};
+    //     snprintf(errorBuffer,sizeof(errorBuffer),"create socket error:%d",errno);
+    //     LOG_ERROR("%s", errorBuffer);
+    //     controller->SetFailed(errorBuffer);
+    //     return;
+    // }
     size_t idx=hostIpPort.find(':');
     if (idx==std::string::npos) {
         LOG_ERROR("method_path:%s address is invalid!", methodPath.c_str());
         controller->SetFailed(methodPath+" address is invalid!");
-        close(clientfd);
         return;
     }
 
     std::string ip=hostIpPort.substr(0,idx);
     uint16_t port=std::stoi(hostIpPort.substr(idx+1,hostIpPort.size()-idx));
-    
-    struct sockaddr_in serverAddr;
-    serverAddr.sin_family=AF_INET;
-    serverAddr.sin_port=htons(port);
-    // server_addr.sin_addr.s_addr=inet_addr(ip.c_str());
-    if (inet_pton(AF_INET,ip.c_str(),&serverAddr.sin_addr)<=0) {
-        char errorBuffer[128] = {0};
-        snprintf(errorBuffer, sizeof(errorBuffer), "inet_pton error for ip:%s", ip.c_str());
-        LOG_ERROR("%s", errorBuffer);
-        controller->SetFailed(errorBuffer);
-        close(clientfd);
-        return;
-    }
 
-    // 连接rpc服务节点
-    if (-1==connect(clientfd,(struct sockaddr*)&serverAddr,sizeof(serverAddr))) {
-        char errorBuffer[128] = {0};
-        snprintf(errorBuffer, sizeof(errorBuffer), "connect to %s:%d error: %d",ip.c_str(), port, errno);
-        LOG_ERROR("%s", errorBuffer);
+    ConnectionPool& pool=ConnectionPool::GetInstance();
+    int clientfd=pool.GetConnection(ip,port,3000);
+
+    if (clientfd==-1) {
+        char errorBuffer[128];
+        snprintf(errorBuffer, sizeof(errorBuffer),"get connection to %s:%d failed or timeout", ip.c_str(), port);
         controller->SetFailed(errorBuffer);
-        close(clientfd);
         return;
     }
 
@@ -152,7 +137,7 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
         snprintf(errorBuffer, sizeof(errorBuffer), "send error: %d", errno);
         LOG_ERROR("%s", errorBuffer);
         controller->SetFailed(errorBuffer);
-        close(clientfd);
+        pool.ReturnConnection(ip,port,clientfd,false);
         return;
     }
 
@@ -161,7 +146,7 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
     if (recvlen!=4) {
         controller->SetFailed("recv response length error");
         LOG_ERROR("recv response length error");
-        close(clientfd);
+        pool.ReturnConnection(ip,port,clientfd,false);
         return;
     }
     responseLen=ntohl(responseLen);
@@ -179,10 +164,10 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
     size_t received=0;
     while (received<responseLen) {
         ssize_t n=recv(clientfd,recvBuffer.data()+received,responseLen-received,0);
-        if (n<=0) {
+        if (n <= 0) {
+            LOG_ERROR("recv failed: n=%zd, errno=%d", n, errno);
             controller->SetFailed("recv response data error");
-            LOG_ERROR("recv response data error");
-            close(clientfd);
+            pool.ReturnConnection(ip, port, clientfd, false);
             return;
         }
         received+=n;
@@ -191,11 +176,11 @@ void MprpcChannel::CallMethod(const google::protobuf::MethodDescriptor *method,
     if (!response->ParseFromArray(recvBuffer.data(),static_cast<int>(responseLen))) {
         controller->SetFailed("response parse error");
         LOG_ERROR("response parse error");
-        close(clientfd);
+        pool.ReturnConnection(ip,port,clientfd,false);
         return;
     }
 
-    close(clientfd);
+    pool.ReturnConnection(ip,port,clientfd,true);
 
     if (done!=nullptr) {
         done->Run();
